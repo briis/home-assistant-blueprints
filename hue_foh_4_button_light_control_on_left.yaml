@@ -1,0 +1,127 @@
+blueprint:
+  name: HUE - Philips Friends of Hue 4 button light switch (On Left Side)
+  description: >
+    Philips Friends of Hue Smart 4 button switch that controls on or more lights. Buttons are Vertical plased and On is on the Left Side.
+  domain: automation
+  source_url: https://github.com/briis/home-assistant-blueprints/blob/main/hue_foh_4_button_light_control_on_left.yaml
+  input:
+    philipsfoh_sw:
+      name: Friends of HUE Switch
+      description: Philips Friends of Hue Smart Switch (4 buttons)
+      selector:
+        device:
+          manufacturer: PhilipsFoH
+          multiple: false
+    light_upper:
+      name: Single light or group of lights
+      description: Light(s) to control for Upper Row Buttons
+      selector:
+        target:
+          entity:
+            domain: light
+    light_lower:
+      name: Single light or group of lights
+      description: Light(s) to control for Lower Row Buttons
+      selector:
+        target:
+          entity:
+            domain: light
+
+mode: restart
+max_exceeded: silent
+
+trigger:
+  - platform: event
+    event_type: hue_event
+    event_data:
+      device_id: !input philipsfoh_sw
+action:
+  - variables:
+      command: "{{ trigger.event.data.type }}"
+      button_id: "{{ trigger.event.data.subtype }}"
+      unique_id: "{{ trigger.event.data.unique_id }}"
+  - choose:
+      - conditions: "{{ command == 'short_release' and button_id == 3 }}"
+        sequence:
+          - alias: "Turn off the light upper row"
+            service: light.turn_off
+            target: !input light_upper
+      - conditions: "{{ command == 'repeat' and button_id == 3 }}"
+        sequence:
+          - repeat:
+              while: "{{ command == 'repeat' and button_id == 3 }}"
+              sequence:
+                - service: light.turn_on
+                  data:
+                    brightness_step_pct: -4
+                  target: !input light_upper
+                - delay:
+                    hours: 0
+                    minutes: 0
+                    seconds: 0
+                    milliseconds: 500
+      - conditions: "{{ command == 'long_release' and button_id == 3 }}"
+        sequence: []
+      - conditions: "{{ command == 'short_release' and button_id == 4 }}"
+        sequence:
+          - alias: "Turn off the light lower row"
+            service: light.turn_off
+            target: !input light_lower
+      - conditions: "{{ command == 'repeat' and button_id == 4 }}"
+        sequence:
+          - repeat:
+              while: "{{ command == 'repeat' and button_id == 4 }}"
+              sequence:
+                - service: light.turn_on
+                  data:
+                    brightness_step_pct: -4
+                  target: !input light_lower
+                - delay:
+                    hours: 0
+                    minutes: 0
+                    seconds: 0
+                    milliseconds: 500
+      - conditions: "{{ command == 'long_release' and button_id == 4 }}"
+        sequence: []
+      - conditions: "{{ command == 'initial_press' and button_id == 1 }}"
+        sequence:
+          - alias: "Turn on the light upper row"
+            service: light.turn_on
+            target: !input light_upper
+      - conditions: "{{ command == 'repeat' and button_id == 1 }}"
+        sequence:
+          - repeat:
+              while: "{{ command == 'repeat' and button_id == 1 }}"
+              sequence:
+                - service: light.turn_on
+                  data:
+                    brightness_step_pct: 4
+                  target: !input light_upper
+                - delay:
+                    hours: 0
+                    minutes: 0
+                    seconds: 0
+                    milliseconds: 500
+      - conditions: "{{ command == 'long_release' and button_id == 1 }}"
+        sequence: []
+      - conditions: "{{ command == 'initial_press' and button_id == 2 }}"
+        sequence:
+          - alias: "Turn on the light lower row"
+            service: light.turn_on
+            target: !input light_lower
+      - conditions: "{{ command == 'repeat' and button_id == 2 }}"
+        sequence:
+          - repeat:
+              while: "{{ command == 'repeat' and button_id == 2 }}"
+              sequence:
+                - service: light.turn_on
+                  data:
+                    brightness_step_pct: 4
+                  target: !input light_lower
+                - delay:
+                    hours: 0
+                    minutes: 0
+                    seconds: 0
+                    milliseconds: 500
+      - conditions: "{{ command == 'long_release' and button_id == 2 }}"
+        sequence: []
