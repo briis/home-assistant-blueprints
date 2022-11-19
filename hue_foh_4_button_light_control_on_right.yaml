@@ -1,7 +1,7 @@
 blueprint:
   name: HUE - Philips Friends of Hue 4 button light switch (On Right Side)
   description: >
-    Philips Friends of Hue Smart 4 button switch that controls on or more lights. Buttons are Vertical plased.
+    Philips Friends of Hue Smart 4 button switch that controls on or more lights. Buttons are Vertical aligned and On is on the Right Side.
   domain: automation
   source_url: https://github.com/briis/home-assistant-blueprints/blob/main/hue_foh_4_button_light_control_on_right.yaml
   input:
