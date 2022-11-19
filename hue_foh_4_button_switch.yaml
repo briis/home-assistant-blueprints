@@ -3,7 +3,7 @@ blueprint:
   description: >
     Philips Friends of Hue Smart Switch (4 buttons)
   domain: automation
-  #source_url: https://github.com/myGithub-Markus/home-assistant_blueprints/blob/main/deconz_friends_of_hue_smart_switch_fourfold_button.yaml
+  source_url: https://github.com/briis/home-assistant-blueprints/blob/main/hue_foh_4_button_switch.yaml
   input:
     philipsfoh_sw:
       name: Friends of HUE Switch
