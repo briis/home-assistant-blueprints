@@ -1,7 +1,7 @@
 blueprint:
   name: HUE - Philips Friends of Hue Smart Switch (4 buttons)
   description: >
-    Philips Friends of Hue Smart Switch (4 buttons)
+    Philips Friends of Hue Smart Switch (4 buttons) linked to a Hue Bridge with NO Configuration
   domain: automation
   source_url: https://github.com/briis/home-assistant-blueprints/blob/main/hue_foh_4_button_switch.yaml
   input:
@@ -51,11 +51,11 @@ action:
       button_id: "{{ trigger.event.data.subtype }}"
       unique_id: "{{ trigger.event.data.unique_id }}"
   - choose:
-      - conditions: "{{ command == 'short_release' and button_id == 1 }}"
+      - conditions: "{{ command == 'initial_press' and button_id == 1 }}"
         sequence: !input "button_UL_short_press"
-      - conditions: "{{ command == 'short_release' and button_id == 2 }}"
+      - conditions: "{{ command == 'initial_press' and button_id == 2 }}"
         sequence: !input "button_LL_short_press"
-      - conditions: "{{ command == 'short_release' and button_id == 3 }}"
+      - conditions: "{{ command == 'initial_press' and button_id == 3 }}"
         sequence: !input "button_UR_short_press"
-      - conditions: "{{ command == 'short_release' and button_id == 4 }}"
+      - conditions: "{{ command == 'initial_press' and button_id == 4 }}"
         sequence: !input "button_LR_short_press"
