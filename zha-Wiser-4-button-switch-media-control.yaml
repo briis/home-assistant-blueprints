@@ -70,7 +70,7 @@ blueprint:
           unit_of_measurement: "Num"
           mode: slider
 
-  source_url: https://github.com/briis/home-assistant-blueprints/blob/main/zha-Wiser-4-button-remote-sound.yaml
+  source_url: https://github.com/briis/home-assistant-blueprints/blob/main/zha-Wiser-4-button-switch-media-control.yaml
 mode: restart
 max_exceeded: silent
 trigger:
