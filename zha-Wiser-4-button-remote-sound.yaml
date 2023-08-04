@@ -1,0 +1,99 @@
+blueprint:
+  name: ZHA Schneider Wiser 4-Button for Volume and Media Control
+  description: Automate Schneider Wiser 4-Button remote by ZHA events. Specific to control a media player
+  domain: automation
+  input:
+    schneider_wiser_sw:
+      name: Schneider Wiser 4-Button Volume and Media Control
+      description: Schneider Wiser 4-Button 555 D 6001
+      selector:
+        device:
+          integration: zha
+          manufacturer: Schneider Electric
+          model: FLS/AIRLINK/4
+          multiple: false
+    media_device:
+      name: Media Player to Use
+      description: Media Player to be controlled by buttons
+      selector:
+        target:
+          entity:
+            domain: media_player
+    playlist:
+      name: Playlist to Use
+      description: Select the Input Select Device which contains the Playlist
+      selector:
+        target:
+          entity:
+            domain: input_select
+  source_url: https://gist.github.com/probize/5a9cfb3fadac5e7955942b0bfe841238
+mode: restart
+max_exceeded: silent
+trigger:
+  - platform: event
+    event_type: zha_event
+    event_data:
+      device_id: !input schneider_wiser_sw
+action:
+  - variables:
+      command: "{{ trigger.event.data.command }}"
+      endpoint_id: "{{ trigger.event.data.endpoint_id }}"
+      args: "{{ trigger.event.data.args }}"
+      playlist: !input playlist
+  - choose:
+      # button_UL_short_press
+      - conditions: "{{ command == 'on' and endpoint_id == 21 }}"
+        sequence:
+          - service: media_player.media_play
+            data: {}
+            target: !input media_device
+      # button_LL_short_press
+      - conditions: "{{ command == 'on' and endpoint_id == 22 }}"
+        sequence:
+          - service: input_select.select_next
+            data:
+              cycle: true
+            target:
+              entity_id: !input playlist
+          - service: media_player.select_source
+            data:
+              source: "{{ states(playlist) }}"
+            target:
+              entity_id: !input media_device
+      # button_UR_short_press
+      - conditions: "{{ command == 'off' and endpoint_id == 21 }}"
+        sequence:
+          - service: media_player.media_pause
+            data: {}
+            target: !input media_device
+      # button_LR_short_press
+      - conditions: "{{ command == 'off' and endpoint_id == 22 }}"
+        sequence:
+          - service: input_select.select_previous
+            data:
+              cycle: true
+            target:
+              entity_id: !input playlist
+          - service: media_player.select_source
+            data:
+              source: "{{ states(playlist) }}"
+            target:
+              entity_id: !input media_device
+      # button_UL_long_press
+      # - conditions: "{{ command == 'move_with_on_off' and endpoint_id == 21 }}"
+      #   sequence: !input button_UL_long_press
+      # button_LL_long_press
+      # - conditions: "{{ command == 'move_with_on_off' and endpoint_id == 22 }}"
+      #   sequence: !input button_LL_long_press
+      # button_UR_long_press
+      # - conditions: "{{ command == 'move' and endpoint_id == 21 }}"
+      #   sequence: !input button_UR_long_press
+      # button_LR_long_press
+      # - conditions: "{{ command == 'move' and endpoint_id == 22 }}"
+      #   sequence: !input button_LR_long_press
+      # button_U_stop_long_press
+      # - conditions: "{{ command == 'stop' and endpoint_id == 21 }}"
+      #   sequence: !input button_U_stop_long_press
+      # button_L_stop_long_press
+      # - conditions: "{{ command == 'stop' and endpoint_id == 22 }}"
+      #   sequence: !input button_L_stop_long_press
