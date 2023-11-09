@@ -112,7 +112,7 @@ blueprint:
             - "40% åben"
             - "75% åben"
             - "100% åben"
-  source_url: https://github.com/briis/home-assistant-blueprints/blob/main/zha-Wiser-4-button-switch-light-input_select-control.yaml
+  source_url: https://raw.githubusercontent.com/briis/home-assistant-blueprints/main/zigbee2mqtt/Z2M-Wiser-4-button-battery-light-input_select-control.yaml
 mode: restart
 max_exceeded: silent
 trigger:
