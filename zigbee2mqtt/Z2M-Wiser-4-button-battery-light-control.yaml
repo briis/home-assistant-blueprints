@@ -1,42 +1,30 @@
 blueprint:
   name: Zigbee2Mqtt LK Fuga Wiser 4-Button Switch for Light and Dimming
-  description: >
-    #### Automate Schneider Wiser 4-Button Battery Switch by Zigbee2Mqtt events.
-
-    This Blueprint is specific for controlling Lights. It support 2 different light (or Light Groups). One for the Upper Bar and one for the Lower Bar. 
-
-    The Buttons are paired as follows:
-
-    * Upper Left button Short Press: Turn On Light 1
-
-    * Upper Right button Short Press: Turn of Light 1
-
-    * Upper Left button Long Press: Dim the Light 1 Up
-
-    * Upper Right button Long Press: Dim the Light 1 down
-
-    * Lower Left button Short Press: Turn On Light 2
-
-    * Lower Right button Short Press: Turn of Light 2
-
-    * Lower Left button Long Press: Dim the Light 2 Up
-
-    * Lower Right button Long Press: Dim the Light 2 down
-
+  description:
+    "#### Automate Schneider Wiser 4-Button Battery Switch by Zigbee2Mqtt
+    events.\nThis Blueprint is specific for controlling Lights. It support 2 different
+    light (or Light Groups). One for the Upper Bar and one for the Lower Bar. \nThe
+    Buttons are paired as follows:\n* Upper Left button Short Press: Turn On Light
+    1\n* Upper Right button Short Press: Turn of Light 1\n* Upper Left button Long
+    Press: Dim the Light 1 Up\n* Upper Right button Long Press: Dim the Light 1 down\n*
+    Lower Left button Short Press: Turn On Light 2\n* Lower Right button Short Press:
+    Turn of Light 2\n* Lower Left button Long Press: Dim the Light 2 Up\n* Lower Right
+    button Long Press: Dim the Light 2 down\n"
   domain: automation
   input:
     schneider_wiser_sw:
       name: LK Fuga Wiser Battery Operated 4-button Device
       description: MQTT Action topic to listen for (Ex. zigbee2mqtt/fuga_switch/action)
       selector:
-        text:
+        text: {}
     light_device_1:
       name: Light(s) for the Upper Bar
       description: Choose the Light entities to be controlled by the Upper Bar buttons
       selector:
         target:
           entity:
-            domain: light
+            - domain:
+                - light
     color_light_1:
       name: Color Temperature for Light 1
       description: Color temperature in mireds.
@@ -47,14 +35,17 @@ blueprint:
           max_mireds: 500
     brightness_light_1:
       name: Brightness for Light 1
-      description: Number indicating the percentage of full brightness, where 0 turns the light off, 1 is the minimum brightness, and 100 is the maximum brightness.
+      description:
+        Number indicating the percentage of full brightness, where 0 turns
+        the light off, 1 is the minimum brightness, and 100 is the maximum brightness.
       default: 90
       selector:
         number:
-          min: 0
-          max: 100
+          min: 0.0
+          max: 100.0
           unit_of_measurement: "%"
-          step: 5
+          step: 5.0
+          mode: slider
     light_device_2:
       name: Light(s) for the Lower Bar
       description: Choose the Light entities to be controlled by the Lower Bar buttons
@@ -62,7 +53,8 @@ blueprint:
       selector:
         target:
           entity:
-            domain: light
+            - domain:
+                - light
     color_light_2:
       name: Color Temperature for Light 2
       description: Color temperature in mireds.
@@ -73,73 +65,67 @@ blueprint:
           max_mireds: 500
     brightness_light_2:
       name: Brightness for Light 2
-      description: Number indicating the percentage of full brightness, where 0 turns the light off, 1 is the minimum brightness, and 100 is the maximum brightness.
+      description:
+        Number indicating the percentage of full brightness, where 0 turns
+        the light off, 1 is the minimum brightness, and 100 is the maximum brightness.
       default: 90
       selector:
         number:
-          min: 0
-          max: 100
+          min: 0.0
+          max: 100.0
           unit_of_measurement: "%"
-          step: 5
+          step: 5.0
+          mode: slider
     step_size:
       name: Brightness step value
       description: Change brightness by an amount.
       default: 25
       selector:
         number:
-          min: 5
-          max: 50
-          step: 5
+          min: 5.0
+          max: 50.0
+          step: 5.0
+          mode: slider
   source_url: https://raw.githubusercontent.com/briis/home-assistant-blueprints/main/zigbee2mqtt/Z2M-Wiser-4-button-battery-light-control.yaml
 mode: restart
 max_exceeded: silent
 trigger:
-  # button_UL_short_press
   - platform: mqtt
     topic: !input schneider_wiser_sw
     payload: on_top
     id: ul_short
-  # button_LL_short_press
   - platform: mqtt
     topic: !input schneider_wiser_sw
     payload: on_bottom
     id: ll_short
-  # button_UR_short_press
   - platform: mqtt
     topic: !input schneider_wiser_sw
     payload: off_top
     id: ur_short
-  # button_LR_short_press
   - platform: mqtt
     topic: !input schneider_wiser_sw
     payload: off_bottom
     id: lr_short
-  # button_UL_long_press
   - platform: mqtt
     topic: !input schneider_wiser_sw
     payload: brightness_move_up_top
     id: ul_long
-  # button_UR_long_press
   - platform: mqtt
     topic: !input schneider_wiser_sw
     payload: brightness_move_down_top
     id: ur_long
-  # button_LL_long_press
   - platform: mqtt
     topic: !input schneider_wiser_sw
     payload: brightness_move_up_bottom
     id: ll_long
-  # button_LR_long_press
   - platform: mqtt
     topic: !input schneider_wiser_sw
     payload: brightness_move_down_bottom
     id: lr_long
-  # button_L_stop
   - platform: mqtt
     topic: !input schneider_wiser_sw
     payload: brightness_stop_bottom
     id: l_stop
-  # button_U_stop
   - platform: mqtt
     topic: !input schneider_wiser_sw
     payload: brightness_stop_top
@@ -152,16 +138,29 @@ action:
       step_up: "{{ step_size * 1 }}"
       step_down: "{{ step_size * -1 }}"
       dim_delay: 500
+      brightness_val_1: !input brightness_light_1
+      brightness_val_2: !input brightness_light_2
   - choose:
       - conditions:
           - condition: trigger
             id: ul_short
         sequence:
-          - service: light.turn_on
-            data:
-              color_temp: !input color_light_1
-              brightness_pct: !input brightness_light_1
-            target: !input light_device_1
+          - if:
+              - condition: template
+                value_template: "{{ brightness_val_1 == 0 }}"
+            then:
+              - service: light.turn_on
+                data:
+                  transition: 1
+                  color_temp: !input color_light_1
+                target: !input light_device_1
+            else:
+              - service: light.turn_on
+                data:
+                  transition: 1
+                  color_temp: !input color_light_1
+                  brightness_pct: !input brightness_light_1
+                target: !input light_device_1
       - conditions:
           - condition: trigger
             id: ur_short
@@ -211,11 +210,22 @@ action:
           - condition: trigger
             id: ll_short
         sequence:
-          - service: light.turn_on
-            data:
-              color_temp: !input color_light_2
-              brightness_pct: !input brightness_light_2
-            target: !input light_device_2
+          - if:
+              - condition: template
+                value_template: "{{ brightness_val_2 == 0 }}"
+            then:
+              - service: light.turn_on
+                data:
+                  transition: 1
+                  color_temp: !input color_light_2
+                target: !input light_device_2
+            else:
+              - service: light.turn_on
+                data:
+                  transition: 1
+                  color_temp: !input color_light_2
+                  brightness_pct: !input brightness_light_2
+                target: !input light_device_2
       - conditions:
           - condition: trigger
             id: lr_short
