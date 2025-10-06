@@ -1,0 +1,214 @@
+blueprint:
+  name: Schneider FLS/AIRLINK/4 Music Control
+  description: Control Music Assistant playback with Schneider Electric FLS/AIRLINK/4 switch via ZHA
+  domain: automation
+  input:
+    remote:
+      name: FLS/AIRLINK/4 Switch
+      description: Select your Schneider Electric FLS/AIRLINK/4 device
+      selector:
+        device:
+          filter:
+            - integration: zha
+              manufacturer: Schneider Electric
+              model: FLS/AIRLINK/4
+    media_player:
+      name: Media Player
+      description: Select the media player to control (must be a Music Assistant player)
+      selector:
+        entity:
+          filter:
+            - domain: media_player
+              integration: music_assistant
+    radio_station_list:
+      name: Radio Station List
+      description: Select an input_select helper containing your radio stations
+      selector:
+        entity:
+          filter:
+            - domain: input_select
+    default_radio_station:
+      name: Default Radio Station
+      description: Select the default radio station
+      default: "DR P4"
+      selector:
+        select:
+          options:
+            - "DR P1"
+            - "DR P3"
+            - "DR P4"
+            - "DR P5"
+            - "Radio Soft"
+
+mode: restart
+max_exceeded: silent
+
+triggers:
+  - trigger: event
+    event_type: zha_event
+    event_data:
+      device_id: !input remote
+
+action:
+  - variables:
+      command: "{{ trigger.event.data.command }}"
+      endpoint_id: "{{ trigger.event.data.endpoint_id }}"
+      media_device: !input media_player
+      radio_station_list: !input radio_station_list
+      default_station: !input default_radio_station
+      current_media_title: "{{ state_attr(media_device, 'media_title') }}"
+      selected_station: "{{ states(radio_station_list) }}"
+      translated_selected: >
+        {% set station = states(radio_station_list) %}
+        {% if station == 'DR P1' %}DR P1 (AAC)
+        {% elif station == 'DR P3' %}DR P3
+        {% elif station == 'DR P4' %}DR P4 København HLS 96
+        {% elif station == 'DR P5' %}DR P5 København (AAC)
+        {% elif station == 'Radio Soft' %}Radio Soft
+        {% else %}{{ station }}
+        {% endif %}
+      translated_default: >
+        {% set station = default_station %}
+        {% if station == 'DR P1' %}DR P1 (AAC)
+        {% elif station == 'DR P3' %}DR P3
+        {% elif station == 'DR P4' %}DR P4 København HLS 96
+        {% elif station == 'DR P5' %}DR P5 København (AAC)
+        {% elif station == 'Radio Soft' %}Radio Soft
+        {% else %}{{ station }}
+        {% endif %}
+  - choose:
+      # Upper left button (on command, endpoint 21)
+      - conditions:
+          - condition: template
+            value_template: "{{ command == 'on' and endpoint_id == 21 }}"
+        sequence:
+          - action: music_assistant.play_media
+            metadata: {}
+            data:
+              media_type: radio
+              media_id: >
+                {% if selected_station not in [none, '', 'unknown', 'unavailable'] %}
+                  {{ translated_selected }}
+                {% else %}
+                  {{ translated_default }}
+                {% endif %}
+            target:
+              entity_id: !input media_player
+
+      # Upper right button (off command, endpoint 21)
+      - conditions:
+          - condition: template
+            value_template: "{{ command == 'off' and endpoint_id == 21 }}"
+        sequence:
+          - action: media_player.media_pause
+            metadata: {}
+            data: {}
+            target:
+              entity_id: !input media_player
+
+      # Lower left button - Next station (on command, endpoint 22) or Volume Up (hold)
+      - conditions:
+          - condition: template
+            value_template: "{{ command == 'on' and endpoint_id == 22 }}"
+        sequence:
+          - action: input_select.select_next
+            target:
+              entity_id: !input radio_station_list
+            data:
+              cycle: true
+          - delay:
+              milliseconds: 200
+          - variables:
+              new_station: "{{ states(radio_station_list) }}"
+          - action: music_assistant.play_media
+            metadata: {}
+            data:
+              media_type: radio
+              media_id: >
+                {% if new_station == 'DR P1' %}DR P1 (AAC)
+                {% elif new_station == 'DR P3' %}DR P3
+                {% elif new_station == 'DR P4' %}DR P4 København HLS 96
+                {% elif new_station == 'DR P5' %}DR P5 København (AAC)
+                {% elif new_station == 'Radio Soft' %}Radio Soft
+                {% else %}{{ new_station }}
+                {% endif %}
+            target:
+              entity_id: !input media_player
+
+      # Lower right button - Previous station (off command, endpoint 22) or Volume Down (hold)
+      - conditions:
+          - condition: template
+            value_template: "{{ command == 'off' and endpoint_id == 22 }}"
+        sequence:
+          - action: input_select.select_previous
+            target:
+              entity_id: !input radio_station_list
+            data:
+              cycle: true
+          - delay:
+              milliseconds: 200
+          - variables:
+              new_station: "{{ states(radio_station_list) }}"
+          - action: music_assistant.play_media
+            metadata: {}
+            data:
+              media_type: radio
+              media_id: >
+                {% if new_station == 'DR P1' %}DR P1 (AAC)
+                {% elif new_station == 'DR P3' %}DR P3
+                {% elif new_station == 'DR P4' %}DR P4 København HLS 96
+                {% elif new_station == 'DR P5' %}DR P5 København (AAC)
+                {% elif new_station == 'Radio Soft' %}Radio Soft
+                {% else %}{{ new_station }}
+                {% endif %}
+            target:
+              entity_id: !input media_player
+
+      # Lower left button - Volume Up (hold - move_with_on_off command, endpoint 22)
+      - conditions:
+          - condition: template
+            value_template: "{{ command == 'move_with_on_off' and endpoint_id == 22 }}"
+        sequence:
+          - repeat:
+              while:
+                - condition: template
+                  value_template: "{{ true }}"
+              sequence:
+                - variables:
+                    current_volume: "{{ state_attr(media_device, 'volume_level') | float(0) }}"
+                    new_volume: "{{ [current_volume + 0.05, 1.0] | min }}"
+                - action: media_player.volume_set
+                  target:
+                    entity_id: !input media_player
+                  data:
+                    volume_level: "{{ new_volume }}"
+                - delay:
+                    milliseconds: 400
+
+      # Lower right button - Volume Down (hold - move command, endpoint 22)
+      - conditions:
+          - condition: template
+            value_template: "{{ command == 'move' and endpoint_id == 22 }}"
+        sequence:
+          - repeat:
+              while:
+                - condition: template
+                  value_template: "{{ true }}"
+              sequence:
+                - variables:
+                    current_volume: "{{ state_attr(media_device, 'volume_level') | float(0) }}"
+                    new_volume: "{{ [current_volume - 0.05, 0.0] | max }}"
+                - action: media_player.volume_set
+                  target:
+                    entity_id: !input media_player
+                  data:
+                    volume_level: "{{ new_volume }}"
+                - delay:
+                    milliseconds: 400
+
+      # Stop volume adjustment when button is released (stop command, endpoint 22)
+      - conditions:
+          - condition: template
+            value_template: "{{ command == 'stop' and endpoint_id == 22 }}"
+        sequence:
+          - stop: "Button released"

@@ -1,0 +1,194 @@
+blueprint:
+  name: Schneider FLS/AIRLINK/4 Light Control
+  description: Control lights with Schneider Electric FLS/AIRLINK/4 switch via ZHA
+  domain: automation
+  input:
+    remote:
+      name: FLS/AIRLINK/4 Switch
+      description: Select your Schneider Electric FLS/AIRLINK/4 device
+      selector:
+        device:
+          filter:
+            - integration: zha
+              manufacturer: Schneider Electric
+              model: FLS/AIRLINK/4
+    upper_light:
+      name: Upper Row Light
+      description: Light to control with the upper row buttons
+      selector:
+        entity:
+          filter:
+            - domain: light
+    use_lower_row:
+      name: Use Lower Row
+      description: Enable control of a second light with the lower row buttons
+      default: false
+      selector:
+        boolean:
+    lower_light:
+      name: Lower Row Light
+      description: Light to control with the lower row buttons (only used if "Use Lower Row" is enabled)
+      default: {}
+      selector:
+        entity:
+          filter:
+            - domain: light
+    brightness_step:
+      name: Brightness Step
+      description: Brightness change percentage per adjustment cycle (1-20%)
+      default: 5
+      selector:
+        number:
+          min: 1
+          max: 20
+          unit_of_measurement: "%"
+    dim_delay:
+      name: Dim Delay
+      description: Delay between brightness adjustments in milliseconds
+      default: 400
+      selector:
+        number:
+          min: 100
+          max: 1000
+          step: 50
+          unit_of_measurement: "ms"
+
+mode: restart
+max_exceeded: silent
+
+triggers:
+  - trigger: event
+    event_type: zha_event
+    event_data:
+      device_id: !input remote
+
+action:
+  - variables:
+      command: "{{ trigger.event.data.command }}"
+      endpoint_id: "{{ trigger.event.data.endpoint_id }}"
+      use_lower: !input use_lower_row
+      brightness_pct: !input brightness_step
+      brightness_step_decimal: "{{ (brightness_pct / 100) | float }}"
+      delay_ms: !input dim_delay
+  - choose:
+      # Upper left button - Turn on light (on command, endpoint 21)
+      - conditions:
+          - condition: template
+            value_template: "{{ command == 'on' and endpoint_id == 21 }}"
+        sequence:
+          - action: light.turn_on
+            target:
+              entity_id: !input upper_light
+
+      # Upper right button - Turn off light (off command, endpoint 21)
+      - conditions:
+          - condition: template
+            value_template: "{{ command == 'off' and endpoint_id == 21 }}"
+        sequence:
+          - action: light.turn_off
+            target:
+              entity_id: !input upper_light
+
+      # Upper left button - Brightness up (hold - move_with_on_off command, endpoint 21)
+      - conditions:
+          - condition: template
+            value_template: "{{ command == 'move_with_on_off' and endpoint_id == 21 }}"
+        sequence:
+          - repeat:
+              while:
+                - condition: template
+                  value_template: "{{ true }}"
+              sequence:
+                - action: light.turn_on
+                  target:
+                    entity_id: !input upper_light
+                  data:
+                    brightness_step_pct: "{{ brightness_pct }}"
+                - delay:
+                    milliseconds: "{{ delay_ms }}"
+
+      # Upper right button - Brightness down (hold - move command, endpoint 21)
+      - conditions:
+          - condition: template
+            value_template: "{{ command == 'move' and endpoint_id == 21 }}"
+        sequence:
+          - repeat:
+              while:
+                - condition: template
+                  value_template: "{{ true }}"
+              sequence:
+                - action: light.turn_on
+                  target:
+                    entity_id: !input upper_light
+                  data:
+                    brightness_step_pct: "{{ -brightness_pct }}"
+                - delay:
+                    milliseconds: "{{ delay_ms }}"
+
+      # Stop brightness adjustment when button is released (stop command, endpoint 21)
+      - conditions:
+          - condition: template
+            value_template: "{{ command == 'stop' and endpoint_id == 21 }}"
+        sequence:
+          - stop: "Upper button released"
+
+      # Lower left button - Turn on light (on command, endpoint 22)
+      - conditions:
+          - condition: template
+            value_template: "{{ command == 'on' and endpoint_id == 22 and use_lower }}"
+        sequence:
+          - action: light.turn_on
+            target:
+              entity_id: !input lower_light
+
+      # Lower right button - Turn off light (off command, endpoint 22)
+      - conditions:
+          - condition: template
+            value_template: "{{ command == 'off' and endpoint_id == 22 and use_lower }}"
+        sequence:
+          - action: light.turn_off
+            target:
+              entity_id: !input lower_light
+
+      # Lower left button - Brightness up (hold - move_with_on_off command, endpoint 22)
+      - conditions:
+          - condition: template
+            value_template: "{{ command == 'move_with_on_off' and endpoint_id == 22 and use_lower }}"
+        sequence:
+          - repeat:
+              while:
+                - condition: template
+                  value_template: "{{ true }}"
+              sequence:
+                - action: light.turn_on
+                  target:
+                    entity_id: !input lower_light
+                  data:
+                    brightness_step_pct: "{{ brightness_pct }}"
+                - delay:
+                    milliseconds: "{{ delay_ms }}"
+
+      # Lower right button - Brightness down (hold - move command, endpoint 22)
+      - conditions:
+          - condition: template
+            value_template: "{{ command == 'move' and endpoint_id == 22 and use_lower }}"
+        sequence:
+          - repeat:
+              while:
+                - condition: template
+                  value_template: "{{ true }}"
+              sequence:
+                - action: light.turn_on
+                  target:
+                    entity_id: !input lower_light
+                  data:
+                    brightness_step_pct: "{{ -brightness_pct }}"
+                - delay:
+                    milliseconds: "{{ delay_ms }}"
+
+      # Stop brightness adjustment when button is released (stop command, endpoint 22)
+      - conditions:
+          - condition: template
+            value_template: "{{ command == 'stop' and endpoint_id == 22 and use_lower }}"
+        sequence:
+          - stop: "Lower button released"
