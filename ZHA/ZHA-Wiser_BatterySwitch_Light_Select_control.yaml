@@ -1,0 +1,220 @@
+blueprint:
+  name: Schneider FLS/AIRLINK/4 Light and Input Select Control
+  description: Control light with upper row and input_select with lower row buttons on Schneider Electric FLS/AIRLINK/4 switch via ZHA
+  domain: automation
+  input:
+    remote:
+      name: FLS/AIRLINK/4 Switch
+      description: Select your Schneider Electric FLS/AIRLINK/4 device
+      selector:
+        device:
+          filter:
+            - integration: zha
+              manufacturer: Schneider Electric
+              model: FLS/AIRLINK/4
+    upper_light:
+      name: Upper Row Light
+      description: Light to control with the upper row buttons
+      selector:
+        entity:
+          filter:
+            - domain: light
+    brightness_step:
+      name: Brightness Step
+      description: Brightness change percentage per adjustment cycle (1-20%)
+      default: 5
+      selector:
+        number:
+          min: 1
+          max: 20
+          unit_of_measurement: "%"
+    dim_delay:
+      name: Dim Delay
+      description: Delay between brightness adjustments in milliseconds
+      default: 400
+      selector:
+        number:
+          min: 100
+          max: 1000
+          step: 50
+          unit_of_measurement: "ms"
+    use_lower_row:
+      name: Use Lower Row for Input Select
+      description: Enable control of an input_select with the lower row buttons
+      default: false
+      selector:
+        boolean:
+    input_select_entity:
+      name: Input Select Entity
+      description: Input select helper to control with lower row buttons (only used if enabled)
+      default: {}
+      selector:
+        entity:
+          filter:
+            - domain: input_select
+    lower_left_press_value:
+      name: Lower Left Press Value
+      description: Value to select when lower left button is pressed
+      default: ""
+      selector:
+        text:
+    lower_left_hold_value:
+      name: Lower Left Hold Value
+      description: Value to select when lower left button is held
+      default: ""
+      selector:
+        text:
+    lower_right_press_value:
+      name: Lower Right Press Value
+      description: Value to select when lower right button is pressed
+      default: ""
+      selector:
+        text:
+    lower_right_hold_value:
+      name: Lower Right Hold Value
+      description: Value to select when lower right button is held
+      default: ""
+      selector:
+        text:
+
+mode: restart
+max_exceeded: silent
+
+triggers:
+  - trigger: event
+    event_type: zha_event
+    event_data:
+      device_id: !input remote
+
+action:
+  - variables:
+      command: "{{ trigger.event.data.command }}"
+      endpoint_id: "{{ trigger.event.data.endpoint_id }}"
+      use_lower: !input use_lower_row
+      brightness_pct: !input brightness_step
+      delay_ms: !input dim_delay
+      input_select: !input input_select_entity
+      left_press: !input lower_left_press_value
+      left_hold: !input lower_left_hold_value
+      right_press: !input lower_right_press_value
+      right_hold: !input lower_right_hold_value
+  - choose:
+      # Upper left button - Turn on light (on command, endpoint 21)
+      - conditions:
+          - condition: template
+            value_template: "{{ command == 'on' and endpoint_id == 21 }}"
+        sequence:
+          - action: light.turn_on
+            target:
+              entity_id: !input upper_light
+
+      # Upper right button - Turn off light (off command, endpoint 21)
+      - conditions:
+          - condition: template
+            value_template: "{{ command == 'off' and endpoint_id == 21 }}"
+        sequence:
+          - action: light.turn_off
+            target:
+              entity_id: !input upper_light
+
+      # Upper left button - Brightness up (hold - move_with_on_off command, endpoint 21)
+      - conditions:
+          - condition: template
+            value_template: "{{ command == 'move_with_on_off' and endpoint_id == 21 }}"
+        sequence:
+          - repeat:
+              while:
+                - condition: template
+                  value_template: "{{ true }}"
+              sequence:
+                - action: light.turn_on
+                  target:
+                    entity_id: !input upper_light
+                  data:
+                    brightness_step_pct: "{{ brightness_pct }}"
+                - delay:
+                    milliseconds: "{{ delay_ms }}"
+
+      # Upper right button - Brightness down (hold - move command, endpoint 21)
+      - conditions:
+          - condition: template
+            value_template: "{{ command == 'move' and endpoint_id == 21 }}"
+        sequence:
+          - repeat:
+              while:
+                - condition: template
+                  value_template: "{{ true }}"
+              sequence:
+                - action: light.turn_on
+                  target:
+                    entity_id: !input upper_light
+                  data:
+                    brightness_step_pct: "{{ -brightness_pct }}"
+                - delay:
+                    milliseconds: "{{ delay_ms }}"
+
+      # Stop brightness adjustment when button is released (stop command, endpoint 21)
+      - conditions:
+          - condition: template
+            value_template: "{{ command == 'stop' and endpoint_id == 21 }}"
+        sequence:
+          - stop: "Upper button released"
+
+      # Lower left button - Press (on command, endpoint 22)
+      - conditions:
+          - condition: template
+            value_template: "{{ command == 'on' and endpoint_id == 22 and use_lower }}"
+        sequence:
+          - condition: template
+            value_template: "{{ left_press != '' }}"
+          - action: input_select.select_option
+            target:
+              entity_id: !input input_select_entity
+            data:
+              option: "{{ left_press }}"
+
+      # Lower right button - Press (off command, endpoint 22)
+      - conditions:
+          - condition: template
+            value_template: "{{ command == 'off' and endpoint_id == 22 and use_lower }}"
+        sequence:
+          - condition: template
+            value_template: "{{ right_press != '' }}"
+          - action: input_select.select_option
+            target:
+              entity_id: !input input_select_entity
+            data:
+              option: "{{ right_press }}"
+
+      # Lower left button - Hold (move_with_on_off command, endpoint 22)
+      - conditions:
+          - condition: template
+            value_template: "{{ command == 'move_with_on_off' and endpoint_id == 22 and use_lower }}"
+        sequence:
+          - condition: template
+            value_template: "{{ left_hold != '' }}"
+          - action: input_select.select_option
+            target:
+              entity_id: !input input_select_entity
+            data:
+              option: "{{ left_hold }}"
+
+      # Lower right button - Hold (move command, endpoint 22)
+      - conditions:
+          - condition: template
+            value_template: "{{ command == 'move' and endpoint_id == 22 and use_lower }}"
+        sequence:
+          - condition: template
+            value_template: "{{ right_hold != '' }}"
+          - action: input_select.select_option
+            target:
+              entity_id: !input input_select_entity
+            data:
+              option: "{{ right_hold }}"
+
+      # Stop command (endpoint 22) - No action needed for input_select
+      - conditions:
+          - condition: template
+            value_template: "{{ command == 'stop' and endpoint_id == 22 and use_lower }}"
+        sequence:
+          - stop: "Lower button released"
