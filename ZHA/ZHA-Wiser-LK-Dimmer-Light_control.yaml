@@ -1,0 +1,120 @@
+blueprint:
+  name: Schneider LK Dimmer Bottom Row Control
+  description: Control a light with the bottom row buttons on Schneider Electric LK Dimmer via ZHA
+  domain: automation
+  input:
+    remote:
+      name: LK Dimmer
+      description: Select your Schneider Electric LK Dimmer device
+      selector:
+        device:
+          filter:
+            - integration: zha
+              manufacturer: Schneider Electric
+              model: LK Dimmer
+    target_light:
+      name: Target Light
+      description: Light to control with the bottom row buttons
+      selector:
+        entity:
+          filter:
+            - domain: light
+    left_button_action:
+      name: Left Button Action
+      description: What should the left button do?
+      default: "turn_on"
+      selector:
+        select:
+          options:
+            - label: "Turn On"
+              value: "turn_on"
+            - label: "Turn Off"
+              value: "turn_off"
+            - label: "Toggle"
+              value: "toggle"
+    right_button_action:
+      name: Right Button Action
+      description: What should the right button do?
+      default: "turn_off"
+      selector:
+        select:
+          options:
+            - label: "Turn On"
+              value: "turn_on"
+            - label: "Turn Off"
+              value: "turn_off"
+            - label: "Toggle"
+              value: "toggle"
+
+mode: restart
+max_exceeded: silent
+
+triggers:
+  - trigger: event
+    event_type: zha_event
+    event_data:
+      device_id: !input remote
+
+action:
+  - variables:
+      command: "{{ trigger.event.data.command }}"
+      endpoint_id: "{{ trigger.event.data.endpoint_id }}"
+      scene_id: "{{ trigger.event.data.params.scene_id if trigger.event.data.params is defined else 0 }}"
+      left_action: !input left_button_action
+      right_action: !input right_button_action
+  - choose:
+      # Left button - endpoint 23, scene_id 1
+      - conditions:
+          - condition: template
+            value_template: "{{ command == 'recall' and endpoint_id == 23 and scene_id == 1 }}"
+        sequence:
+          - choose:
+              - conditions:
+                  - condition: template
+                    value_template: "{{ left_action == 'turn_on' }}"
+                sequence:
+                  - action: light.turn_on
+                    target:
+                      entity_id: !input target_light
+              - conditions:
+                  - condition: template
+                    value_template: "{{ left_action == 'turn_off' }}"
+                sequence:
+                  - action: light.turn_off
+                    target:
+                      entity_id: !input target_light
+              - conditions:
+                  - condition: template
+                    value_template: "{{ left_action == 'toggle' }}"
+                sequence:
+                  - action: light.toggle
+                    target:
+                      entity_id: !input target_light
+
+      # Right button - endpoint 24, scene_id 2
+      - conditions:
+          - condition: template
+            value_template: "{{ command == 'recall' and endpoint_id == 24 and scene_id == 2 }}"
+        sequence:
+          - choose:
+              - conditions:
+                  - condition: template
+                    value_template: "{{ right_action == 'turn_on' }}"
+                sequence:
+                  - action: light.turn_on
+                    target:
+                      entity_id: !input target_light
+              - conditions:
+                  - condition: template
+                    value_template: "{{ right_action == 'turn_off' }}"
+                sequence:
+                  - action: light.turn_off
+                    target:
+                      entity_id: !input target_light
+              - conditions:
+                  - condition: template
+                    value_template: "{{ right_action == 'toggle' }}"
+                sequence:
+                  - action: light.toggle
+                    target:
+                      entity_id: !input target_light
