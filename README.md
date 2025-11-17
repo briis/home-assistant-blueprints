@@ -2,6 +2,10 @@
 
 This a collection of some specialized Blueprints I use in my own Home Assistant setup. There are many great Blueprints out there, so the ones you find below, where ones I needed due to specific HW entities that no one else had done, plus some special requirements I have for my specific setup.
 
+> [!NOTE]
+> All the Zigbee2MQTT Blueprints have not been updated for a while, and I would not recommend using them. They will eventually be revised and made better.
+ 
+
 Link | Integration | Hardware | Description
 ---- | ----------- | -------- | -----------
 [![Open your Home Assistant instance and show the blueprint import dialog with a specific blueprint pre-filled.](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fraw.githubusercontent.com%2Fbriis%2Fhome-assistant-blueprints%2Fmain%2Fzigbee2mqtt%2FZ2M-Wiser-4-button-battery-light-control.yaml) | Zigbee2Mqtt | LK FUGA wiser wireless battery 4 button switch (550D6001) | This Blueprint is specific for controlling Lights. It support 2 different light (or Light Groups). One for the Upper Bar and one for the Lower Bar. Tap Action turns the light on or off (Left/Right) and Hold Action, dims the light up or down (Left/Right)
