@@ -1,0 +1,76 @@
+blueprint:
+  name: Schneider FLS/AIRLINK/4 Generic Button Control
+  description: Assign custom actions to each button on Schneider Electric FLS/AIRLINK/4 switch via ZHA
+  domain: automation
+  input:
+    remote:
+      name: FLS/AIRLINK/4 Switch
+      description: Select your Schneider Electric FLS/AIRLINK/4 device
+      selector:
+        device:
+          filter:
+            - integration: zha
+              manufacturer: Schneider Electric
+              model: FLS/AIRLINK/4
+    upper_left_action:
+      name: Upper Left Button Action
+      description: Action to run when upper left button is pressed (optional)
+      default: []
+      selector:
+        action:
+    upper_right_action:
+      name: Upper Right Button Action
+      description: Action to run when upper right button is pressed (optional)
+      default: []
+      selector:
+        action:
+    lower_left_action:
+      name: Lower Left Button Action
+      description: Action to run when lower left button is pressed (optional)
+      default: []
+      selector:
+        action:
+    lower_right_action:
+      name: Lower Right Button Action
+      description: Action to run when lower right button is pressed (optional)
+      default: []
+      selector:
+        action:
+
+mode: restart
+max_exceeded: silent
+
+triggers:
+  - trigger: event
+    event_type: zha_event
+    event_data:
+      device_id: !input remote
+
+action:
+  - variables:
+      command: "{{ trigger.event.data.command }}"
+      endpoint_id: "{{ trigger.event.data.endpoint_id }}"
+  - choose:
+      # Upper left button (on command, endpoint 21)
+      - conditions:
+          - condition: template
+            value_template: "{{ command == 'on' and endpoint_id == 21 }}"
+        sequence: !input upper_left_action
+
+      # Upper right button (off command, endpoint 21)
+      - conditions:
+          - condition: template
+            value_template: "{{ command == 'off' and endpoint_id == 21 }}"
+        sequence: !input upper_right_action
+
+      # Lower left button (on command, endpoint 22)
+      - conditions:
+          - condition: template
+            value_template: "{{ command == 'on' and endpoint_id == 22 }}"
+        sequence: !input lower_left_action
+
+      # Lower right button (off command, endpoint 22)
+      - conditions:
+          - condition: template
+            value_template: "{{ command == 'off' and endpoint_id == 22 }}"
+        sequence: !input lower_right_action
