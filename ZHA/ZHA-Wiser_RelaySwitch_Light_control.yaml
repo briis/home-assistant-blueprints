@@ -1,0 +1,71 @@
+blueprint:
+  name: Schneider LK Relay Switch Light Control
+  description: >-
+    Control one or two lights with a Schneider Electric LK Switch via ZHA.
+
+
+    - Left button: turn on
+
+    - Right button: turn off
+
+
+    Each row is used when a light is selected for it.
+  domain: automation
+  author: Bjarne Riis
+  source_url: https://github.com/briis/home-assistant-blueprints/blob/main/ZHA/ZHA-Wiser_RelaySwitch_Light_control.yaml
+  input:
+    remote:
+      name: LK Switch
+      description: Select your Schneider Electric LK Switch device
+      selector:
+        device:
+          filter:
+            - integration: zha
+              manufacturer: Schneider Electric
+              model: LK Switch
+    upper_light:
+      name: Upper Row Light
+      description: Optional light to control with the upper row buttons
+      default: ""
+      selector:
+        entity:
+          filter:
+            - domain: light
+    lower_light:
+      name: Lower Row Light
+      description: Optional light to control with the lower row buttons
+      default: ""
+      selector:
+        entity:
+          filter:
+            - domain: light
+
+mode: restart
+max_exceeded: silent
+
+triggers:
+  - trigger: event
+    event_type: zha_event
+    event_data:
+      device_id: !input remote
+
+actions:
+  - variables:
+      command: "{{ trigger.event.data.command | default('') }}"
+      endpoint_id: "{{ trigger.event.data.endpoint_id | int(0) }}"
+      upper_light: !input upper_light
+      lower_light: !input lower_light
+      # Upper row: on at endpoint 21, off at 22. Lower row: on at 23, off at 24.
+      light: >-
+        {{ upper_light if endpoint_id in [21, 22]
+           else lower_light if endpoint_id in [23, 24]
+           else '' }}
+      wanted: >-
+        {{ {21: 'on', 22: 'off', 23: 'on', 24: 'off'}.get(endpoint_id, '') }}
+  - condition: template
+    value_template: >-
+      {{ light is string and light | length > 0
+         and command in ['on', 'off'] and command == wanted }}
+  - action: "light.turn_{{ command }}"
+    target:
+      entity_id: "{{ light }}"

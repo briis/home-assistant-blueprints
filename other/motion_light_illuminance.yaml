@@ -1,0 +1,109 @@
+blueprint:
+  name: Motion-activated Light with Illuminance and Brightness
+  description: >-
+    Turn on a light when motion is detected and the illuminance is below a set
+    lux level, and turn it off again a while after all motion sensors cleared.
+
+
+    Based on [Motion-activated Light with illuminance](https://gist.github.com/Danielbook/7814e7eb32e880b2d7c3fb5ba8430f4f)
+    by Danielbook, with multiple sensors, occupancy sensors and a brightness
+    setting added.
+  domain: automation
+  author: Bjarne Riis
+  source_url: https://github.com/briis/home-assistant-blueprints/blob/main/other/motion_light_illuminance.yaml
+  input:
+    motion_entity:
+      name: Motion Sensors
+      description: >-
+        One or more motion or occupancy sensors. The light stays on while any
+        of them detects motion.
+      selector:
+        entity:
+          multiple: true
+          filter:
+            - domain: binary_sensor
+              device_class:
+                - motion
+                - occupancy
+    lux_entity:
+      name: Illuminance Sensor
+      selector:
+        entity:
+          filter:
+            - domain: sensor
+              device_class: illuminance
+    lux_level:
+      name: Illuminance level
+      description: If lux is below this value and motion is detected, the light will turn on.
+      default: 100
+      selector:
+        number:
+          min: 0
+          max: 1000
+          step: 1
+          unit_of_measurement: lx
+          mode: slider
+    light_target:
+      name: Light
+      selector:
+        target:
+          entity:
+            - domain: light
+    brightness:
+      name: Brightness
+      description: Brightness the light is turned on with.
+      default: 100
+      selector:
+        number:
+          min: 1
+          max: 100
+          step: 1
+          unit_of_measurement: "%"
+          mode: slider
+    no_motion_wait:
+      name: Wait time
+      description: Time to leave the light on after all motion sensors cleared.
+      default: 120
+      selector:
+        number:
+          min: 0
+          max: 3600
+          step: 1
+          unit_of_measurement: seconds
+          mode: slider
+
+# Restart: new motion during the wait starts over, keeping the light on.
+mode: restart
+max_exceeded: silent
+
+variables:
+  motion_entities: !input motion_entity
+
+triggers:
+  - trigger: state
+    entity_id: !input motion_entity
+    from: "off"
+    to: "on"
+
+conditions:
+  - condition: or
+    conditions:
+      - condition: numeric_state
+        entity_id: !input lux_entity
+        below: !input lux_level
+      # Already running: the light itself may have pushed the lux up, so new
+      # motion must still restart the run and keep the light on.
+      - condition: template
+        value_template: "{{ this.attributes.current | int(0) > 0 }}"
+
+actions:
+  - action: light.turn_on
+    target: !input light_target
+    data:
+      brightness_pct: !input brightness
+  # Wait for all sensors to be clear, not just the one that triggered.
+  - wait_template: >-
+      {{ motion_entities | select('is_state', 'on') | list | count == 0 }}
+  - delay: !input no_motion_wait
+  - action: light.turn_off
+    target: !input light_target

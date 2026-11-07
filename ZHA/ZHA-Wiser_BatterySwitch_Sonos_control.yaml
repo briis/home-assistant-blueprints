@@ -1,0 +1,163 @@
+blueprint:
+  name: Schneider FLS/AIRLINK/4 Music Control for Sonos
+  description: >-
+    Play Sonos favorites (like radio stations) with a Schneider Electric
+    FLS/AIRLINK/4 battery switch via ZHA.
+
+
+    - Upper left press: play the station selected in the input select (or the default)
+
+    - Upper right press: pause
+
+    - Lower left press / hold: next station / volume up
+
+    - Lower right press / hold: previous station / volume down
+
+
+    The input select holds station names. **Station favorites** maps each name
+    to its Sonos favorite ID (`FV:2/…`); a name that isn't mapped is used as
+    the favorite ID as is.
+  domain: automation
+  author: Bjarne Riis
+  source_url: https://github.com/briis/home-assistant-blueprints/blob/main/ZHA/ZHA-Wiser_BatterySwitch_Sonos_control.yaml
+  input:
+    remote:
+      name: FLS/AIRLINK/4 Switch
+      description: Select your Schneider Electric FLS/AIRLINK/4 device
+      selector:
+        device:
+          filter:
+            - integration: zha
+              manufacturer: Schneider Electric
+              model: FLS/AIRLINK/4
+    media_player:
+      name: Media Player
+      description: Select the Sonos speaker to control
+      selector:
+        entity:
+          filter:
+            - domain: media_player
+              integration: sonos
+    radio_station_list:
+      name: Radio Station List
+      description: Select an input_select helper containing your radio stations
+      selector:
+        entity:
+          filter:
+            - domain: input_select
+    default_radio_station:
+      name: Default Radio Station
+      description: Station to play when the input select has no valid value
+      default: DR P4
+      selector:
+        text: {}
+    station_favorites:
+      name: Station favorites
+      description: >-
+        Station name to Sonos favorite ID. Find the IDs with the
+        media_player.browse_media action on the speaker, under Favorites.
+      default:
+        DR P1: FV:2/3
+        DR P3: FV:2/5
+        DR P4: FV:2/6
+        DR P5: FV:2/7
+        Radio Soft: FV:2/8
+      selector:
+        object: {}
+    volume_step:
+      name: Volume Step
+      description: Volume change per step while holding a lower button
+      default: 5
+      selector:
+        number:
+          min: 1
+          max: 20
+          step: 1
+          unit_of_measurement: "%"
+          mode: slider
+
+# Restart: a "stop" (button released) ends a running volume loop.
+mode: restart
+max_exceeded: silent
+
+triggers:
+  - trigger: event
+    event_type: zha_event
+    event_data:
+      device_id: !input remote
+
+actions:
+  - variables:
+      command: "{{ trigger.event.data.command }}"
+      endpoint_id: "{{ trigger.event.data.endpoint_id }}"
+      media_device: !input media_player
+      radio_station_list: !input radio_station_list
+      default_station: !input default_radio_station
+      favorites: !input station_favorites
+      volume_step: !input volume_step
+      step: "{{ volume_step / 100 }}"
+  - choose:
+      # Upper left press: play the selected (or default) station
+      - conditions: "{{ command == 'on' and endpoint_id == 21 }}"
+        sequence:
+          - variables:
+              station: >-
+                {% set selected = states(radio_station_list) %}
+                {{ selected if selected not in ['', 'unknown', 'unavailable'] else default_station }}
+          - action: media_player.play_media
+            target:
+              entity_id: "{{ media_device }}"
+            data:
+              media:
+                media_content_type: favorite_item_id
+                media_content_id: "{{ favorites.get(station, station) }}"
+
+      # Upper right press: pause
+      - conditions: "{{ command == 'off' and endpoint_id == 21 }}"
+        sequence:
+          - action: media_player.media_pause
+            target:
+              entity_id: "{{ media_device }}"
+
+      # Lower left / right press: next / previous station, and play it
+      - conditions: "{{ command in ['on', 'off'] and endpoint_id == 22 }}"
+        sequence:
+          - action: "input_select.select_{{ 'next' if command == 'on' else 'previous' }}"
+            target:
+              entity_id: "{{ radio_station_list }}"
+            data:
+              cycle: true
+          - delay:
+              milliseconds: 200
+          - variables:
+              station: "{{ states(radio_station_list) }}"
+          - action: media_player.play_media
+            target:
+              entity_id: "{{ media_device }}"
+            data:
+              media:
+                media_content_type: favorite_item_id
+                media_content_id: "{{ favorites.get(station, station) }}"
+
+      # Lower left / right hold: volume up / down until released
+      - conditions: "{{ command in ['move_with_on_off', 'move'] and endpoint_id == 22 }}"
+        sequence:
+          - variables:
+              direction: "{{ 1 if command == 'move_with_on_off' else -1 }}"
+          - repeat:
+              while: "{{ true }}"
+              sequence:
+                - action: media_player.volume_set
+                  target:
+                    entity_id: "{{ media_device }}"
+                  data:
+                    volume_level: >-
+                      {% set current = state_attr(media_device, 'volume_level') | float(0) %}
+                      {{ [[current + direction * step, 0.0] | max, 1.0] | min | round(2) }}
+                - delay:
+                    milliseconds: 400
+
+      # Button released: the restart already ended the volume loop
+      - conditions: "{{ command == 'stop' and endpoint_id == 22 }}"
+        sequence:
+          - stop: Button released
