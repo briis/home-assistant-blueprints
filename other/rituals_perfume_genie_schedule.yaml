@@ -1,0 +1,140 @@
+blueprint:
+  name: Rituals Perfume Genie – schedule
+  description: >-
+    Drives a Rituals Perfume Genie from a Schedule helper, replacing the
+    schedule in the Rituals app (delete that one first, or the two will fight).
+
+
+    The diffuser turns on when a schedule block starts and off when it ends.
+    Give a block **Additional data** like `perfume_amount: 2` to set the
+    intensity for that block; blocks without it use the default below.
+
+
+    Only sends a command when the diffuser isn't already in the wanted state,
+    to go easy on the Rituals API rate limit.
+  domain: automation
+  author: Bjarne Riis
+  source_url: https://github.com/briis/home-assistant-blueprints/blob/main/other/rituals_perfume_genie_schedule.yaml
+  input:
+    schedule:
+      name: Schedule
+      description: Schedule helper with the times the diffuser should run.
+      selector:
+        entity:
+          filter:
+            - domain: schedule
+    diffuser:
+      name: Diffuser
+      description: The on/off switch of the Perfume Genie.
+      selector:
+        entity:
+          filter:
+            - integration: rituals_perfume_genie
+              domain: switch
+    perfume_amount_entity:
+      name: Perfume amount entity
+      description: The perfume amount number of the same Perfume Genie.
+      default: ""
+      selector:
+        entity:
+          filter:
+            - integration: rituals_perfume_genie
+              domain: number
+    default_amount:
+      name: Default perfume amount
+      description: >-
+        Intensity for blocks without `perfume_amount` in their additional
+        data. 0 leaves the current intensity unchanged.
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 3
+          step: 1
+          mode: slider
+    enable_entity:
+      name: Only run when this is on
+      description: >-
+        Optional. The schedule only runs the diffuser while this binary sensor
+        (or input boolean) is on. Turning it off during a block turns the
+        diffuser off; turning it on during a block turns the diffuser on.
+      default: ""
+      selector:
+        entity:
+          filter:
+            - domain:
+                - binary_sensor
+                - input_boolean
+    sync_on_start:
+      name: Sync on Home Assistant start
+      description: Apply the current schedule state when Home Assistant starts.
+      default: true
+      selector:
+        boolean: {}
+
+mode: queued
+max: 5
+
+trigger_variables:
+  gate_entity: !input enable_entity
+
+variables:
+  schedule_entity: !input schedule
+  diffuser_entity: !input diffuser
+  amount_entity: !input perfume_amount_entity
+  default_amount: !input default_amount
+  sync_on_start: !input sync_on_start
+
+triggers:
+  # No to/from: also fires when back-to-back blocks change the additional
+  # data while the schedule stays on.
+  - trigger: state
+    entity_id: !input schedule
+    id: schedule
+  # Template triggers, so the gate can stay optional. Each fires when the
+  # gate changes to on, or away from on.
+  - trigger: template
+    value_template: "{{ gate_entity != '' and is_state(gate_entity, 'on') }}"
+    id: gate
+  - trigger: template
+    value_template: "{{ gate_entity != '' and not is_state(gate_entity, 'on') }}"
+    id: gate
+  - trigger: homeassistant
+    event: start
+    id: start
+
+conditions:
+  - condition: template
+    value_template: >-
+      {{ states(schedule_entity) in ['on', 'off']
+         and (trigger.id != 'start' or sync_on_start) }}
+
+actions:
+  - variables:
+      wanted_on: >-
+        {{ is_state(schedule_entity, 'on')
+           and (gate_entity == '' or is_state(gate_entity, 'on')) }}
+      block_amount: >-
+        {{ state_attr(schedule_entity, 'perfume_amount') | int(default_amount | int) }}
+      current_amount: "{{ states(amount_entity) | float(0) | int if amount_entity else 0 }}"
+  - choose:
+      - conditions: "{{ wanted_on }}"
+        sequence:
+          - if: "{{ amount_entity and block_amount in [1, 2, 3] and block_amount != current_amount }}"
+            then:
+              - action: number.set_value
+                target:
+                  entity_id: "{{ amount_entity }}"
+                data:
+                  value: "{{ block_amount }}"
+          - if: "{{ not is_state(diffuser_entity, 'on') }}"
+            then:
+              - action: switch.turn_on
+                target:
+                  entity_id: "{{ diffuser_entity }}"
+    default:
+      - if: "{{ not is_state(diffuser_entity, 'off') }}"
+        then:
+          - action: switch.turn_off
+            target:
+              entity_id: "{{ diffuser_entity }}"
